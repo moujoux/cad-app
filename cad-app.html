@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1B6B7A">
+<title>CAD症例管理</title>
+<style>
+  :root {
+    --teal:   #1B6B7A;
+    --teal2:  #0D4A56;
+    --amber:  #D4872C;
+    --purple: #5E35B1;
+    --bg:     #EFF7F8;
+    --card:   #ffffff;
+    --muted:  #7a8f93;
+    --border: #d4e8ec;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; font-family: -apple-system, 'Hiragino Sans', 'Meiryo', sans-serif; background: var(--bg); color: #1a1a1a; }
+  body { overscroll-behavior: none; }
+
+  /* ── Layout ── */
+  #app { display: flex; flex-direction: column; height: 100%; max-width: 640px; margin: 0 auto; }
+  .screen { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .screen.active { display: flex; }
+  .scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 14px calc(14px + var(--safe-bot)); }
+
+  /* ── Header ── */
+  .hdr {
+    background: var(--teal); color: #fff;
+    padding: calc(12px + var(--safe-top)) 14px 12px;
+    display: flex; align-items: center; gap: 10;
+    flex-shrink: 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,.18);
+  }
+  .hdr-back { background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0 6px 0 0; line-height: 1; }
+  .hdr-title { font-size: 17px; font-weight: 800; letter-spacing: .3px; }
+  .hdr-sub   { font-size: 11px; opacity: .72; margin-top: 1px; }
+  .hdr-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+  /* ── Cards ── */
+  .card { background: var(--card); border-radius: 14px; padding: 16px; box-shadow: 0 2px 12px rgba(27,107,122,.07); margin-bottom: 12px; }
+  .card-section-title { font-size: 13px; font-weight: 700; color: var(--teal); margin-bottom: 10px; }
+
+  /* ── Buttons ── */
+  .btn { border: none; border-radius: 10px; font-weight: 700; cursor: pointer; transition: opacity .15s, transform .1s; font-family: inherit; }
+  .btn:active { opacity: .8; transform: scale(.97); }
+  .btn-teal   { background: var(--teal);  color: #fff; }
+  .btn-amber  { background: var(--amber); color: #fff; }
+  .btn-ghost  { background: #e4f0f2; color: var(--teal); }
+  .btn-red    { background: #E53935; color: #fff; }
+  .btn-full   { width: 100%; padding: 14px; font-size: 15px; display: block; text-align: center; }
+  .btn-sm     { padding: 6px 14px; font-size: 12px; }
+  .btn-md     { padding: 10px 20px; font-size: 14px; }
+
+  /* ── Form ── */
+  .field-label { font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 4px; }
+  .field-input { width: 100%; padding: 10px 12px; border-radius: 9px; border: 1.5px solid var(--border); font-size: 15px; background: #f7fbfc; font-family: inherit; outline: none; color: #1a1a1a; }
+  .field-input:focus { border-color: var(--teal); }
+  textarea.field-input { min-height: 72px; resize: vertical; }
+
+  /* ── Patient List ── */
+  .patient-row { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .patient-icon { font-size: 28px; flex-shrink: 0; }
+  .patient-name { font-weight: 700; font-size: 16px; }
+  .patient-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .patient-score { text-align: right; flex-shrink: 0; }
+  .score-big { font-size: 22px; font-weight: 900; line-height: 1; }
+  .score-date { font-size: 11px; color: var(--muted); }
+  .sev-badge { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 12px; padding: 2px 10px; margin-top: 3px; }
+
+  /* ── Score Display ── */
+  .score-pair { display: flex; gap: 12px; }
+  .score-box { flex: 1; text-align: center; padding: 10px 0; }
+  .score-label { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .score-num { font-size: 46px; font-weight: 900; line-height: 1; }
+  .score-denom { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .score-delta { font-size: 12px; margin-top: 4px; }
+  .divider-v { width: 1px; background: #f0f0f0; flex-shrink: 0; }
+
+  /* ── CADLI Row ── */
+  .cadli-row { border-radius: 10px; margin-bottom: 8px; overflow: hidden; border: 1px solid #e4eef0; background: #fafafa; transition: border-color .2s; }
+  .cadli-row.open { border: 2px solid var(--teal); background: #f0fafc; }
+  .cadli-row-head { display: flex; align-items: center; gap: 8px; padding: 11px 13px; cursor: pointer; }
+  .cadli-row-name { flex: 1; }
+  .cadli-row-name .en { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .cadli-col-val { text-align: center; min-width: 52px; }
+  .cadli-col-val .col-label { font-size: 9px; font-weight: 600; }
+  .cadli-col-val .col-num { font-size: 20px; font-weight: 900; line-height: 1.1; }
+  .cadli-subtotal { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex-shrink: 0; }
+  .cadli-chevron { color: var(--muted); font-size: 13px; flex-shrink: 0; }
+  .cadli-body { padding: 12px 13px 14px; border-top: 1px solid #e0ecee; }
+  .col-section { margin-bottom: 12px; }
+  .col-section-label { font-size: 12px; font-weight: 700; margin-bottom: 7px; }
+
+  /* ── Score Buttons 0-5 ── */
+  .score-btns { display: flex; gap: 6px; }
+  .score-btn {
+    width: 38px; height: 38px; border-radius: 9px; border: none; cursor: pointer;
+    font-size: 16px; font-weight: 700; transition: all .15s;
+  }
+  .score-btn.sel { box-shadow: 0 0 0 2.5px var(--teal2); }
+  .score-btn-desc { font-size: 10px; color: var(--muted); margin-top: 5px; }
+
+  /* ── pVAS ── */
+  .pvas-face { font-size: 38px; }
+  .pvas-num { font-size: 44px; font-weight: 900; line-height: 1; }
+  .pvas-denom { font-size: 13px; color: var(--muted); margin-left: 4px; }
+  .pvas-sev { font-size: 12px; font-weight: 700; margin-top: 2px; }
+  input[type=range] { width: 100%; cursor: pointer; accent-color: var(--teal); height: 6px; }
+  .pvas-axis { display: flex; justify-content: space-between; font-size: 10px; color: #bbb; margin-top: 3px; }
+  .pvas-quick { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
+  .pvas-quick-btn { width: 32px; height: 28px; border-radius: 14px; border: none; cursor: pointer; font-size: 12px; transition: all .15s; }
+
+  /* ── Summary footer ── */
+  .save-footer { background: var(--teal); padding: 14px 14px calc(14px + var(--safe-bot)); flex-shrink: 0; }
+  .save-footer-scores { display: flex; gap: 12px; margin-bottom: 12px; }
+  .save-col { flex: 1; text-align: center; color: #fff; }
+  .save-col .label { font-size: 11px; opacity: .72; }
+  .save-col .num { font-size: 40px; font-weight: 900; line-height: 1; }
+  .save-col .sev { font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .save-divider { width: 1px; background: rgba(255,255,255,.2); }
+
+  /* ── History ── */
+  .hist-row { cursor: pointer; }
+  .hist-head { display: flex; align-items: center; gap: 10px; }
+  .hist-date { font-weight: 700; font-size: 15px; flex: 1; }
+  .hist-memo { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .hist-scores { display: flex; gap: 10px; }
+  .hist-score-box { text-align: center; min-width: 56px; }
+  .hist-score-box .hl { font-size: 10px; color: var(--muted); }
+  .hist-score-box .hn { font-size: 22px; font-weight: 900; line-height: 1; }
+  .hist-body { margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f0f0; }
+
+  /* ── Chart ── */
+  .chart-wrap { width: 100%; overflow-x: auto; }
+
+  /* ── Trend totals row ── */
+  .totals-row { display: grid; grid-template-columns: 1fr 1px 1fr 1px 1fr; gap: 6px; background: #f0f7f8; border-radius: 10px; padding: 11px 12px; margin-top: 8px; }
+  .total-cell { text-align: center; }
+  .total-cell .tl { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+  .total-cell .tv { font-size: 18px; font-weight: 800; }
+
+  /* ── Toast ── */
+  #toast { position: fixed; bottom: calc(24px + var(--safe-bot)); left: 50%; transform: translateX(-50%) translateY(20px); background: #222; color: #fff; padding: 10px 22px; border-radius: 24px; font-size: 14px; font-weight: 600; opacity: 0; transition: all .3s; pointer-events: none; z-index: 999; white-space: nowrap; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── Add patient panel ── */
+  .add-panel { border: 2px solid var(--teal); }
+
+  /* ── Empty state ── */
+  .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-title { font-weight: 600; font-size: 16px; margin-bottom: 6px; color: #444; }
+  .empty-body { font-size: 13px; }
+
+  /* ── Confirm dialog ── */
+  #confirm-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; align-items:center; justify-content:center; }
+  #confirm-overlay.show { display:flex; }
+  #confirm-box { background:#fff; border-radius:18px; padding:24px 20px; width:88%; max-width:340px; text-align:center; }
+  #confirm-msg { font-size:15px; font-weight:600; margin-bottom:18px; }
+  .confirm-btns { display:flex; gap:10px; }
+  .confirm-btns button { flex:1; padding:11px; border-radius:10px; border:none; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; }
+
+  /* Browser bookmark hint */
+  #install-hint { background: #e8f4f6; border: 1.5px solid #a8d8e0; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 12px; color: #1B6B7A; display: flex; align-items: flex-start; gap: 10px; }
+  #install-hint .ih-icon { font-size: 20px; flex-shrink:0; }
+  #install-hint-close { background:none; border:none; cursor:pointer; color:#999; font-size:18px; margin-left:auto; padding:0; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════ SCREEN: LIST ══════════════ -->
+  <div id="screen-list" class="screen active">
+    <div class="hdr">
+      <span style="font-size:22px">🐾</span>
+      <div>
+        <div class="hdr-title">CAD 症例管理</div>
+        <div class="hdr-sub">犬アトピー性皮膚炎 — CADLI &amp; pVAS</div>
+      </div>
+      <div class="hdr-right">
+        <button class="btn btn-ghost btn-sm" onclick="showScreen('export')" style="font-size:18px;padding:4px 8px" title="データ管理">📤</button>
+        <button class="btn btn-amber btn-sm" onclick="showAddPanel()">＋ 新規登録</button>
+      </div>
+    </div>
+    <div class="scroll-area">
+
+      <!-- Install hint -->
+      <div id="install-hint">
+        <span class="ih-icon">🔖</span>
+        <div>
+          <b>このページをブックマーク</b>して毎回Safariから開いてください<br>
+          共有ボタン（↑）→「ブックマークを追加」で登録できます
+        </div>
+        <button id="install-hint-close" onclick="closeHint()">✕</button>
+      </div>
+
+      <!-- Add patient panel -->
+      <div id="add-panel" class="card add-panel" style="display:none">
+        <div class="card-section-title">新規症例登録</div>
+        <label class="field-label">患者名（犬の名前）*</label>
+        <input id="new-name" class="field-input" placeholder="例：ポチ" style="margin-bottom:10px">
+        <label class="field-label">犬種</label>
+        <input id="new-breed" class="field-input" placeholder="例：柴犬" style="margin-bottom:10px">
+        <label class="field-label">年齢</label>
+        <input id="new-age" class="field-input" placeholder="例：3歳" style="margin-bottom:14px">
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-teal btn-md" onclick="addPatient()">登録</button>
+          <button class="btn btn-ghost btn-md" onclick="hideAddPanel()">キャンセル</button>
+        </div>
+      </div>
+
+      <div id="patient-list"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════ SCREEN: DETAIL ══════════════ -->
+  <div id="screen-detail" class="screen">
+    <div class="hdr">
+      <button class="hdr-back" onclick="showScreen('list')">←</button>
+      <div>
+        <div class="hdr-title" id="detail-name">—</div>
+        <div class="hdr-sub" id="detail-meta">—</div>
+      </div>
+      <div class="hdr-right">
+        <button onclick="confirmDeletePatient()" style="background:none;border:none;color:rgba(255,120,120,.9);font-size:22px;cursor:pointer">🗑</button>
+      </div>
+    </div>
+    <div class="scroll-area" id="detail-body"></div>
+  </div>
+
+  <!-- ══════════════ SCREEN: RECORD ══════════════ -->
+  <div id="screen-record" class="screen">
+    <div class="hdr">
+      <button class="hdr-back" onclick="showScreen('detail')">←</button>
+      <div>
+        <div class="hdr-title" id="record-name">—</div>
+        <div class="hdr-sub" id="record-sub">入力中…</div>
+      </div>
+      <div class="hdr-right" id="record-saved"></div>
+    </div>
+    <div class="scroll-area" id="record-body"></div>
+    <div class="save-footer">
+      <div class="save-footer-scores">
+        <div class="save-col">
+          <div class="label">CADLI 合計</div>
+          <div class="num" id="footer-cadli">0</div>
+          <div class="label">/ 50</div>
+          <div class="sev" id="footer-cadli-sev">正常</div>
+        </div>
+        <div class="save-divider"></div>
+        <div class="save-col">
+          <div class="label">pVAS</div>
+          <div class="num" id="footer-pvas">0.0</div>
+          <div class="label">/ 10</div>
+          <div class="sev" id="footer-pvas-sev">軽度</div>
+        </div>
+      </div>
+      <button class="btn btn-amber btn-full" onclick="saveRecord()">💾　記録を保存</button>
+    </div>
+  </div>
+
+  <!-- ══════════════ SCREEN: HISTORY ══════════════ -->
+  <div id="screen-history" class="screen">
+    <div class="hdr">
+      <button class="hdr-back" onclick="showScreen('detail')">←</button>
+      <div>
+        <div class="hdr-title" id="hist-name">—</div>
+        <div class="hdr-sub" id="hist-sub">—</div>
+      </div>
+    </div>
+    <div class="scroll-area" id="hist-body"></div>
+  </div>
+
+</div><!-- /app -->
+
+  <!-- ══════════════ SCREEN: EXPORT ══════════════ -->
+  <div id="screen-export" class="screen">
+    <div class="hdr">
+      <button class="hdr-back" onclick="showScreen('list')">←</button>
+      <div>
+        <div class="hdr-title">データ管理</div>
+        <div class="hdr-sub">書き出し・バックアップ・復元</div>
+      </div>
+    </div>
+    <div class="scroll-area">
+
+      <div class="card">
+        <div class="card-section-title">📊 CSVで書き出し（Excel用）</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px">全症例の記録をCSV形式で表示します。全選択してコピー → メモ帳やメールに貼り付けて保存してください。</p>
+        <button class="btn btn-teal btn-full" onclick="showExportText('csv')">CSVを表示する</button>
+      </div>
+
+      <div class="card">
+        <div class="card-section-title">💾 JSONバックアップ</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px">データをJSON形式で表示します。全選択してコピー → メモ帳やメールに貼り付けて保存してください。</p>
+        <button class="btn btn-teal btn-full" onclick="showExportText('json')">JSONを表示する</button>
+      </div>
+
+      <div class="card">
+        <div class="card-section-title">📂 JSONから復元</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:10px">バックアップしたJSONテキストをここに貼り付けて復元します。<b style="color:#E53935">現在のデータは上書きされます。</b></p>
+        <textarea id="import-text" style="width:100%;height:100px;padding:10px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;font-family:monospace;margin-bottom:10px" placeholder="JSONテキストをここに貼り付け…"></textarea>
+        <button class="btn btn-ghost btn-full" onclick="importFromText()">このデータで復元する</button>
+      </div>
+
+      <!-- テキスト表示エリア -->
+      <div id="export-text-area" style="display:none">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div class="card-section-title" style="margin-bottom:0" id="export-text-title">データ</div>
+            <button class="btn btn-amber btn-sm" onclick="selectAllExportText()">全選択</button>
+          </div>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:8px">「全選択」→ コピー → メモ帳・メールに貼り付けて保存してください</p>
+          <textarea id="export-text" style="width:100%;height:220px;padding:10px;border-radius:8px;border:1.5px solid var(--border);font-size:11px;font-family:monospace;background:#f7fbfc" readonly></textarea>
+        </div>
+      </div>
+
+      <div class="card" style="background:#e8f4f6;border:1.5px solid #a8d8e0">
+        <div style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:6px">💡 保存方法（Safari ブラウザ）</div>
+        <p style="font-size:12px;color:var(--teal);line-height:1.8">
+          ① 「全選択」ボタンをタップ<br>
+          ② 長押し → 「コピー」<br>
+          ③ メモアプリやメールに貼り付けて保存<br>
+          ④ 定期的にJSONをコピーしておくと安心です
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Confirm dialog -->
+<div id="confirm-overlay">
+  <div id="confirm-box">
+    <div id="confirm-msg"></div>
+    <div class="confirm-btns">
+      <button id="confirm-cancel" style="background:#eee;color:#555" onclick="closeConfirm()">キャンセル</button>
+      <button id="confirm-ok" style="background:#E53935;color:#fff" onclick="doConfirm()">削除する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════════════════════════
+const REGIONS = [
+  { id:'head',    ja:'頭部・耳介',          en:'Head & Pinnae' },
+  { id:'fore',    ja:'前足',               en:'Forefeet' },
+  { id:'hind',    ja:'後足',               en:'Hind feet' },
+  { id:'thorax',  ja:'腹側胸部・腋窩',      en:'Ventral thorax & Axillae' },
+  { id:'abdomen', ja:'腹部・鼠径部',        en:'Ventral abdomen & Inguinal' },
+];
+const COLS = [
+  { key:'colA', label:'紅斑・擦過傷・びらん',     en:'Erythema / Excoriation / Erosion',           color:'var(--teal)' },
+  { key:'colB', label:'脱毛・苔癬化・色素沈着',   en:'Alopecia / Lichenification / Hyperpigmentation', color:'var(--purple)' },
+];
+const SCORE_DESC = ['なし','軽度','中等度','中等度','重度・広範','重度・広範'];
+const BTN_BG     = ['#e8f4f6','#b3d9e0','#81C784','#FFB74D','#E57373','#B71C1C'];
+const BTN_TC     = ['#333','#333','#fff','#fff','#fff','#fff'];
+
+const SEV_CADLI = s => {
+  if (s===0)  return { label:'正常',   color:'#888',    bg:'#f5f5f5' };
+  if (s<=10)  return { label:'軽度',   color:'#43A047', bg:'#E8F5E9' };
+  if (s<=25)  return { label:'中等度', color:'#FB8C00', bg:'#FFF3E0' };
+  if (s<=40)  return { label:'重度',   color:'#E53935', bg:'#FFEBEE' };
+  return            { label:'最重度', color:'#8E24AA', bg:'#F3E5F5' };
+};
+const SEV_PVAS = s => {
+  if (s<=3) return { label:'軽度',   color:'#43A047' };
+  if (s<=6) return { label:'中等度', color:'#FB8C00' };
+  return          { label:'重度',   color:'#E53935' };
+};
+
+// ══════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════
+let patients = [];
+let selId    = null;
+let curRecord = { date: today(), cadli: emptyCADLI(), pvas: 0, memo: '' };
+let openRegion = null;
+let openHistId = null;
+let confirmCb  = null;
+
+function today() { return new Date().toISOString().slice(0,10); }
+function emptyCADLI() {
+  const o = {};
+  REGIONS.forEach(r => o[r.id] = { colA:0, colB:0 });
+  return o;
+}
+function calcCADLI(c) { return REGIONS.reduce((t,r) => t+(c[r.id]?.colA??0)+(c[r.id]?.colB??0), 0); }
+function getPatient() { return patients.find(p=>p.id===selId); }
+
+// ══════════════════════════════════════════════════════════════════
+// STORAGE (localStorage)
+// ══════════════════════════════════════════════════════════════════
+const SK = 'cad-pwa-v1';
+function load() {
+  try { const d = localStorage.getItem(SK); if(d) patients = JSON.parse(d); } catch(_){}
+}
+function save() {
+  try { localStorage.setItem(SK, JSON.stringify(patients)); } catch(_){}
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════════
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CONFIRM DIALOG
+// ══════════════════════════════════════════════════════════════════
+function showConfirm(msg, cb) {
+  confirmCb = cb;
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-overlay').classList.add('show');
+}
+function closeConfirm() { document.getElementById('confirm-overlay').classList.remove('show'); }
+function doConfirm() { closeConfirm(); if(confirmCb) confirmCb(); }
+
+// ══════════════════════════════════════════════════════════════════
+// SCREENS
+// ══════════════════════════════════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  if (name==='list')    renderList();
+  if (name==='detail')  renderDetail();
+  if (name==='record')  renderRecord();
+  if (name==='history') renderHistory();
+}
+// ══════════════════════════════════════════════════════════════════
+// LIST
+// ══════════════════════════════════════════════════════════════════
+function renderList() {
+  const el = document.getElementById('patient-list');
+  if (patients.length===0) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🐶</div><div class="empty-title">症例がまだ登録されていません</div><div class="empty-body">「＋ 新規登録」から追加してください</div></div>`;
+    return;
+  }
+  el.innerHTML = patients.map(p => {
+    const last = p.records.slice(-1)[0];
+    const sev  = last ? SEV_CADLI(last.cadliTotal) : null;
+    return `<div class="card" style="border-left:4px solid ${sev?.color??'#ddd'};cursor:pointer" onclick="selectPatient('${p.id}')">
+      <div class="patient-row">
+        <span class="patient-icon">🐕</span>
+        <div style="flex:1">
+          <div class="patient-name">${esc(p.name)}</div>
+          <div class="patient-meta">${esc([p.breed,p.age].filter(Boolean).join(' · ')) || '犬種・年齢未登録'}</div>
+        </div>
+        <div class="patient-score">
+          ${last ? `
+            <div class="score-big" style="color:${sev.color}">${last.cadliTotal}<span style="font-size:12px;font-weight:400;color:var(--muted)">/50</span></div>
+            <div class="score-date">${last.date}</div>
+            <div class="sev-badge" style="background:${sev.bg};color:${sev.color}">${sev.label}</div>
+          ` : `<span style="font-size:12px;color:#ccc">記録なし</span>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showAddPanel() {
+  document.getElementById('add-panel').style.display = '';
+  document.getElementById('new-name').focus();
+}
+function hideAddPanel() {
+  document.getElementById('add-panel').style.display = 'none';
+  ['new-name','new-breed','new-age'].forEach(id => document.getElementById(id).value='');
+}
+function addPatient() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) { toast('患者名を入力してください'); return; }
+  const p = { id: Date.now().toString(), name, breed: document.getElementById('new-breed').value.trim(), age: document.getElementById('new-age').value.trim(), records:[] };
+  patients.push(p); save(); hideAddPanel();
+  selectPatient(p.id);
+}
+function selectPatient(id) { selId=id; openRegion=null; showScreen('detail'); }
+
+// ══════════════════════════════════════════════════════════════════
+// DETAIL
+// ══════════════════════════════════════════════════════════════════
+function renderDetail() {
+  const p = getPatient(); if(!p) return;
+  document.getElementById('detail-name').textContent = p.name;
+  document.getElementById('detail-meta').textContent = [p.breed,p.age].filter(Boolean).join(' · ') || '犬種・年齢未登録';
+
+  const last = p.records.slice(-1)[0];
+  const prev = p.records.slice(-2,-1)[0];
+  let html = '';
+
+  if (last) {
+    const sev  = SEV_CADLI(last.cadliTotal);
+    const pSev = SEV_PVAS(last.pvas);
+    const dc = (a,b) => a<b?'#43A047':a>b?'#E53935':'#888';
+    const ds = (a,b) => a<b?'▼ ':a>b?'▲ ':'— ';
+    html += `<div class="card" style="border-top:4px solid ${sev.color}">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px">最新スコア（${last.date}）</div>
+      <div class="score-pair">
+        <div class="score-box">
+          <div class="score-label">CADLI</div>
+          <div class="score-num" style="color:${sev.color}">${last.cadliTotal}</div>
+          <div class="score-denom">/ 50</div>
+          <div class="sev-badge" style="background:${sev.bg};color:${sev.color}">${sev.label}</div>
+          ${prev?`<div class="score-delta" style="color:${dc(last.cadliTotal,prev.cadliTotal)}">${ds(last.cadliTotal,prev.cadliTotal)}${Math.abs(last.cadliTotal-prev.cadliTotal)}</div>`:''}
+        </div>
+        <div class="divider-v"></div>
+        <div class="score-box">
+          <div class="score-label">pVAS（掻痒）</div>
+          <div class="score-num" style="color:${pSev.color}">${last.pvas.toFixed(1)}</div>
+          <div class="score-denom">/ 10</div>
+          <div class="sev-badge" style="background:${pSev.color}22;color:${pSev.color}">${pSev.label}</div>
+          ${prev?`<div class="score-delta" style="color:${dc(last.pvas,prev.pvas)}">${ds(last.pvas,prev.pvas)}${Math.abs(last.pvas-prev.pvas).toFixed(1)}</div>`:''}
+        </div>
+      </div>
+      ${last.memo?`<div style="margin-top:10px;font-size:12px;color:var(--muted);border-top:1px solid #f0f0f0;padding-top:8px">${esc(last.memo)}</div>`:''}
+    </div>`;
+
+    if (p.records.length>=2) {
+      html += `<div class="card"><div class="card-section-title">治療経過グラフ</div><div class="chart-wrap">${buildChart(p.records)}</div></div>`;
+    }
+  } else {
+    html += `<div class="card empty"><div class="empty-icon">📋</div><div class="empty-title">記録がまだありません</div><div class="empty-body">「新規スコア入力」から始めてください</div></div>`;
+  }
+
+  html += `<button class="btn btn-amber btn-full" style="margin-bottom:10px" onclick="startRecord()">📝　新規スコア入力</button>`;
+  html += `<button class="btn btn-ghost btn-full" onclick="showScreen('history')">📅　記録履歴（${p.records.length}件）</button>`;
+
+  document.getElementById('detail-body').innerHTML = html;
+}
+
+function confirmDeletePatient() {
+  const p = getPatient(); if(!p) return;
+  showConfirm(`「${p.name}」の症例をすべて削除しますか？`, () => {
+    patients = patients.filter(x=>x.id!==selId);
+    save(); showScreen('list');
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// RECORD
+// ══════════════════════════════════════════════════════════════════
+function startRecord() {
+  curRecord = { date: today(), cadli: emptyCADLI(), pvas: 0, memo: '' };
+  openRegion = null;
+  showScreen('record');
+}
+
+function renderRecord() {
+  const p = getPatient(); if(!p) return;
+  document.getElementById('record-name').textContent = p.name + ' — スコア入力';
+  updateRecordFooter();
+
+  let html = '';
+
+  // 診察日
+  html += `<div class="card">
+    <label class="field-label">診察日</label>
+    <input type="date" class="field-input" value="${curRecord.date}" onchange="curRecord.date=this.value">
+  </div>`;
+
+  // pVAS
+  const pSev = SEV_PVAS(curRecord.pvas);
+  const face = curRecord.pvas<=2?'😊':curRecord.pvas<=4?'😐':curRecord.pvas<=6?'😣':curRecord.pvas<=8?'😖':'😫';
+  html += `<div class="card">
+    <div class="card-section-title" style="color:var(--amber)">pVAS — 飼い主による掻痒評価</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">0（かゆみなし）〜 10（想像しうる最大のかゆみ）</div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+      <span class="pvas-face">${face}</span>
+      <div>
+        <span class="pvas-num" style="color:${pSev.color}" id="pvas-num">${curRecord.pvas.toFixed(1)}</span>
+        <span class="pvas-denom">/ 10</span>
+        <div class="pvas-sev" style="color:${pSev.color}" id="pvas-sev">${pSev.label}</div>
+      </div>
+    </div>
+    <input type="range" min="0" max="10" step="0.5" value="${curRecord.pvas}" oninput="setPVAS(parseFloat(this.value))" id="pvas-slider">
+    <div class="pvas-axis"><span>0 なし</span><span>5</span><span>10 最重度</span></div>
+    <div class="pvas-quick" id="pvas-quick">${[0,1,2,3,4,5,6,7,8,9,10].map(v=>`<button class="pvas-quick-btn" style="background:${Math.round(curRecord.pvas)===v?pSev.color:'#eee'};color:${Math.round(curRecord.pvas)===v?'#fff':'#555'};font-weight:${Math.round(curRecord.pvas)===v?700:400}" onclick="setPVAS(${v})">${v}</button>`).join('')}</div>
+  </div>`;
+
+  // CADLI
+  html += `<div class="card">
+    <div class="card-section-title">CADLI — 皮膚病変スコア（Plant et al. 2012）</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">各部位・各列を 0〜5 で評価 ／ 合計 0〜50点</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      ${[0,1,2,3,4,5].map(v=>`<span style="font-size:10px;color:var(--muted)"><b style="color:#333">${v}</b>=${SCORE_DESC[v]}</span>`).join('')}
+    </div>
+    <div id="cadli-rows">${buildCADLIRows()}</div>
+    ${buildCADLITotals()}
+  </div>`;
+
+  // メモ
+  html += `<div class="card">
+    <label class="field-label">メモ・所見</label>
+    <textarea class="field-input" placeholder="治療内容、投薬、飼い主コメントなど…" onchange="curRecord.memo=this.value" oninput="curRecord.memo=this.value">${esc(curRecord.memo)}</textarea>
+  </div>`;
+
+  document.getElementById('record-body').innerHTML = html;
+}
+
+function buildCADLIRows() {
+  return REGIONS.map(r => {
+    const colA = curRecord.cadli[r.id]?.colA??0;
+    const colB = curRecord.cadli[r.id]?.colB??0;
+    const rt   = colA+colB;
+    const open = openRegion===r.id;
+    const sevC = rt>0?SEV_CADLI(rt*2.5):{color:'#bbb',bg:'#f0f0f0'};
+    return `<div class="cadli-row${open?' open':''}" id="row-${r.id}">
+      <div class="cadli-row-head" onclick="toggleRegion('${r.id}')">
+        <div class="cadli-row-name">
+          <b style="font-size:13px">${r.ja}</b>
+          <div class="en">${r.en}</div>
+        </div>
+        <div class="cadli-col-val">
+          <div class="col-label" style="color:var(--teal)">Ery/Exc/Ero</div>
+          <div class="col-num" style="color:${colA>0?'var(--teal)':'#ddd'}">${colA}</div>
+        </div>
+        <div class="cadli-col-val">
+          <div class="col-label" style="color:var(--purple)">Alo/Lic/Hyp</div>
+          <div class="col-num" style="color:${colB>0?'var(--purple)':'#ddd'}">${colB}</div>
+        </div>
+        <div class="cadli-subtotal" style="background:${sevC.bg};color:${sevC.color}">${rt}</div>
+        <span class="cadli-chevron">${open?'▲':'▼'}</span>
+      </div>
+      ${open?`<div class="cadli-body">${buildColInputs(r.id)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function buildColInputs(rid) {
+  return COLS.map(col => {
+    const val = curRecord.cadli[rid]?.[col.key]??0;
+    return `<div class="col-section">
+      <div class="col-section-label" style="color:${col.color}">${col.label}</div>
+      <div class="score-btns">
+        ${[0,1,2,3,4,5].map(v=>`<button class="score-btn${val===v?' sel':''}"
+          style="background:${val===v?BTN_BG[v]:'#f0f0f0'};color:${val===v?BTN_TC[v]:'#bbb'}"
+          onclick="setScore('${rid}','${col.key}',${v})" title="${SCORE_DESC[v]}">${v}</button>`).join('')}
+      </div>
+      <div class="score-btn-desc">${SCORE_DESC[val]}</div>
+    </div>`;
+  }).join('');
+}
+
+function buildCADLITotals() {
+  const totA = REGIONS.reduce((s,r)=>s+(curRecord.cadli[r.id]?.colA??0),0);
+  const totB = REGIONS.reduce((s,r)=>s+(curRecord.cadli[r.id]?.colB??0),0);
+  const tot  = totA+totB;
+  return `<div class="totals-row">
+    <div class="total-cell"><div class="tl">Ery/Exc/Ero<br>小計</div><div class="tv" style="color:var(--teal)">${totA}<span style="font-size:11px;font-weight:400">/25</span></div></div>
+    <div style="background:#dde;width:1px"></div>
+    <div class="total-cell"><div class="tl">Alo/Lic/Hyp<br>小計</div><div class="tv" style="color:var(--purple)">${totB}<span style="font-size:11px;font-weight:400">/25</span></div></div>
+    <div style="background:#dde;width:1px"></div>
+    <div class="total-cell"><div class="tl">合計</div><div class="tv" style="color:${SEV_CADLI(tot).color}">${tot}<span style="font-size:11px;font-weight:400">/50</span></div></div>
+  </div>`;
+}
+
+function toggleRegion(rid) {
+  openRegion = openRegion===rid ? null : rid;
+  document.getElementById('cadli-rows').innerHTML = buildCADLIRows();
+  // rebuild totals
+  document.querySelector('#record-body .card:nth-child(3) .totals-row')?.remove();
+  const cadliCard = document.querySelector('#record-body .card:nth-child(3)');
+  if(cadliCard) cadliCard.insertAdjacentHTML('beforeend', buildCADLITotals());
+}
+
+function setScore(rid, col, val) {
+  curRecord.cadli[rid][col] = val;
+  document.getElementById('cadli-rows').innerHTML = buildCADLIRows();
+  const cadliCard = document.querySelector('#record-body .card:nth-child(3)');
+  const old = cadliCard?.querySelector('.totals-row'); if(old) old.remove();
+  if(cadliCard) cadliCard.insertAdjacentHTML('beforeend', buildCADLITotals());
+  updateRecordFooter();
+}
+
+function setPVAS(val) {
+  curRecord.pvas = val;
+  const sev  = SEV_PVAS(val);
+  const face = val<=2?'😊':val<=4?'😐':val<=6?'😣':val<=8?'😖':'😫';
+  document.querySelector('.pvas-face').textContent = face;
+  document.getElementById('pvas-num').textContent  = val.toFixed(1);
+  document.getElementById('pvas-num').style.color  = sev.color;
+  document.getElementById('pvas-sev').textContent  = sev.label;
+  document.getElementById('pvas-sev').style.color  = sev.color;
+  document.getElementById('pvas-slider').value     = val;
+  // quick buttons
+  document.getElementById('pvas-quick').innerHTML  = [0,1,2,3,4,5,6,7,8,9,10].map(v=>`<button class="pvas-quick-btn" style="background:${Math.round(val)===v?sev.color:'#eee'};color:${Math.round(val)===v?'#fff':'#555'};font-weight:${Math.round(val)===v?700:400}" onclick="setPVAS(${v})">${v}</button>`).join('');
+  updateRecordFooter();
+}
+
+function updateRecordFooter() {
+  const tot  = calcCADLI(curRecord.cadli);
+  const sev  = SEV_CADLI(tot);
+  const pSev = SEV_PVAS(curRecord.pvas);
+  document.getElementById('footer-cadli').textContent     = tot;
+  document.getElementById('footer-cadli-sev').textContent = sev.label;
+  document.getElementById('footer-pvas').textContent      = curRecord.pvas.toFixed(1);
+  document.getElementById('footer-pvas-sev').textContent  = pSev.label;
+  document.getElementById('record-sub').textContent = `CADLI: ${tot}/50　pVAS: ${curRecord.pvas.toFixed(1)}/10`;
+}
+
+function saveRecord() {
+  const tot = calcCADLI(curRecord.cadli);
+  const rec = { id: Date.now().toString(), date: curRecord.date, cadliScores: JSON.parse(JSON.stringify(curRecord.cadli)), cadliTotal: tot, pvas: curRecord.pvas, memo: curRecord.memo };
+  const p   = getPatient(); if(!p) return;
+  p.records.push(rec); save();
+  toast('✅ 記録を保存しました');
+  openHistId = null;
+  showScreen('history');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════════════════════════════
+function renderHistory() {
+  const p = getPatient(); if(!p) return;
+  document.getElementById('hist-name').textContent = p.name + ' — 記録履歴';
+  document.getElementById('hist-sub').textContent  = p.records.length+'件';
+
+  const sorted = [...p.records].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  let html = '';
+
+  if (sorted.length>=2) {
+    html += `<div class="card"><div class="card-section-title">治療経過グラフ</div><div class="chart-wrap">${buildChart(p.records)}</div></div>`;
+  }
+  if (sorted.length===0) {
+    html += `<div class="empty"><div class="empty-icon">📭</div><div class="empty-title">記録がありません</div></div>`;
+  }
+
+  sorted.forEach((rec,i) => {
+    const sev  = SEV_CADLI(rec.cadliTotal);
+    const pSev = SEV_PVAS(rec.pvas);
+    const next = sorted[i+1];
+    const dc   = (a,b)=>a<b?'#43A047':a>b?'#E53935':'#888';
+    const ds   = (a,b)=>a<b?'▼':a>b?'▲':'—';
+    const open = openHistId===rec.id;
+
+    html += `<div class="card hist-row" style="border-left:4px solid ${sev.color}">
+      <div class="hist-head" onclick="toggleHist('${rec.id}')">
+        <div style="flex:1">
+          <div class="hist-date">${rec.date}</div>
+          ${rec.memo?`<div class="hist-memo">${esc(rec.memo)}</div>`:''}
+        </div>
+        <div class="hist-scores">
+          <div class="hist-score-box">
+            <div class="hl">CADLI</div>
+            <div class="hn" style="color:${sev.color}">${rec.cadliTotal}</div>
+            ${next?`<div style="font-size:10px;color:${dc(rec.cadliTotal,next.cadliTotal)}">${ds(rec.cadliTotal,next.cadliTotal)}${Math.abs(rec.cadliTotal-next.cadliTotal)}</div>`:''}
+          </div>
+          <div class="hist-score-box">
+            <div class="hl">pVAS</div>
+            <div class="hn" style="color:${pSev.color}">${rec.pvas.toFixed(1)}</div>
+            ${next?`<div style="font-size:10px;color:${dc(rec.pvas,next.pvas)}">${ds(rec.pvas,next.pvas)}${Math.abs(rec.pvas-next.pvas).toFixed(1)}</div>`:''}
+          </div>
+        </div>
+        <span style="color:var(--muted);font-size:13px;margin-left:4px">${open?'▲':'▼'}</span>
+      </div>
+      ${open?`<div class="hist-body">
+        <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:8px">部位別スコア</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr>
+              <th style="text-align:left;color:var(--muted);font-weight:600;padding-bottom:6px">部位</th>
+              <th style="text-align:center;color:var(--teal);font-weight:600;padding-bottom:6px">Ery/Exc/Ero</th>
+              <th style="text-align:center;color:var(--purple);font-weight:600;padding-bottom:6px">Alo/Lic/Hyp</th>
+              <th style="text-align:center;color:var(--muted);font-weight:600;padding-bottom:6px">小計</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${REGIONS.map(r=>{
+              const a=rec.cadliScores?.[r.id]?.colA??0;
+              const b=rec.cadliScores?.[r.id]?.colB??0;
+              return `<tr style="border-top:1px solid #f5f5f5">
+                <td style="padding:4px 0">${r.ja}</td>
+                <td style="text-align:center;font-weight:${a>0?700:400};color:${a>0?'var(--teal)':'#ccc'}">${a}</td>
+                <td style="text-align:center;font-weight:${b>0?700:400};color:${b>0?'var(--purple)':'#ccc'}">${b}</td>
+                <td style="text-align:center;font-weight:700;color:${(a+b)>0?SEV_CADLI((a+b)*2.5).color:'#ccc'}">${a+b}</td>
+              </tr>`;
+            }).join('')}
+            <tr style="border-top:2px solid #e0e0e0">
+              <td style="font-weight:700;padding:6px 0">合計</td>
+              <td style="text-align:center;font-weight:800;color:var(--teal)">${REGIONS.reduce((s,r)=>s+(rec.cadliScores?.[r.id]?.colA??0),0)}</td>
+              <td style="text-align:center;font-weight:800;color:var(--purple)">${REGIONS.reduce((s,r)=>s+(rec.cadliScores?.[r.id]?.colB??0),0)}</td>
+              <td style="text-align:center;font-weight:900;font-size:15px;color:${sev.color}">${rec.cadliTotal}</td>
+            </tr>
+          </tbody>
+        </table>
+        <button class="btn btn-red btn-sm" style="margin-top:14px" onclick="confirmDeleteRecord('${rec.id}')">🗑 この記録を削除</button>
+      </div>`:''}
+    </div>`;
+  });
+
+  document.getElementById('hist-body').innerHTML = html;
+}
+
+function toggleHist(id) {
+  openHistId = openHistId===id ? null : id;
+  renderHistory();
+}
+
+function confirmDeleteRecord(recId) {
+  showConfirm('この記録を削除しますか？', () => {
+    const p = getPatient(); if(!p) return;
+    p.records = p.records.filter(r=>r.id!==recId);
+    save(); openHistId=null; renderHistory();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CHART (SVG)
+// ══════════════════════════════════════════════════════════════════
+function buildChart(records) {
+  const W=360,H=130,PL=36,PR=14,PT=14,PB=28;
+  const iW=W-PL-PR, iH=H-PT-PB;
+  const sorted=[...records].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const n=sorted.length;
+  const cx=i=>PL+(n===1?iW/2:(i/(n-1))*iW);
+  const cyC=v=>PT+iH-(v/50)*iH;
+  const cyP=v=>PT+iH-(v/10)*iH;
+  const ptC=sorted.map((r,i)=>`${cx(i)},${cyC(r.cadliTotal)}`).join(' ');
+  const ptP=sorted.map((r,i)=>`${cx(i)},${cyP(r.pvas)}`).join(' ');
+  const grid=[0,.25,.5,.75,1].map(t=>`<line x1="${PL}" x2="${W-PR}" y1="${PT+iH*(1-t)}" y2="${PT+iH*(1-t)}" stroke="#eee" stroke-width="1"/>`).join('');
+  const dotsC=sorted.map((r,i)=>`<circle cx="${cx(i)}" cy="${cyC(r.cadliTotal)}" r="4" fill="#1B6B7A"/>`).join('');
+  const dotsP=sorted.map((r,i)=>`<circle cx="${cx(i)}" cy="${cyP(r.pvas)}" r="3.5" fill="#D4872C"/>`).join('');
+  const xLabels=sorted.map((r,i)=>(n<=6||i===0||i===n-1)?`<text x="${cx(i)}" y="${H-4}" text-anchor="middle" font-size="9" fill="#999">${r.date.slice(5)}</text>`:'').join('');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:300px">
+    ${grid}
+    <polyline points="${ptC}" fill="none" stroke="#1B6B7A" stroke-width="2.5" stroke-linejoin="round"/>
+    ${dotsC}
+    <polyline points="${ptP}" fill="none" stroke="#D4872C" stroke-width="2" stroke-dasharray="5,3" stroke-linejoin="round"/>
+    ${dotsP}
+    ${xLabels}
+    ${[0,25,50].map(v=>`<text x="${PL-3}" y="${cyC(v)+4}" text-anchor="end" font-size="9" fill="#1B6B7A">${v}</text>`).join('')}
+    <rect x="${PL}" y="2" width="10" height="5" fill="#1B6B7A"/>
+    <text x="${PL+13}" y="8" font-size="9" fill="#1B6B7A">CADLI (0–50)</text>
+    <line x1="${PL+85}" y1="4" x2="${PL+95}" y2="4" stroke="#D4872C" stroke-width="2" stroke-dasharray="4,2"/>
+    <text x="${PL+98}" y="8" font-size="9" fill="#D4872C">pVAS (0–10)</text>
+  </svg>`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ══════════════════════════════════════════════════════════════════
+function buildCSVText() {
+  const rows = [['患者名','犬種','年齢','診察日','CADLI合計','pVAS',
+    '頭部耳介_紅斑擦過','頭部耳介_脱毛苔癬','前足_紅斑擦過','前足_脱毛苔癬',
+    '後足_紅斑擦過','後足_脱毛苔癬','胸部腋窩_紅斑擦過','胸部腋窩_脱毛苔癬',
+    '腹部鼠径_紅斑擦過','腹部鼠径_脱毛苔癬','メモ']];
+  patients.forEach(p => {
+    if (p.records.length === 0) {
+      rows.push([p.name, p.breed||'', p.age||'', '記録なし','','','','','','','','','','','','','']);
+    } else {
+      p.records.forEach(r => {
+        const c = r.cadliScores || {};
+        rows.push([p.name, p.breed||'', p.age||'', r.date, r.cadliTotal, r.pvas,
+          c.head?.colA??0, c.head?.colB??0, c.fore?.colA??0, c.fore?.colB??0,
+          c.hind?.colA??0, c.hind?.colB??0, c.thorax?.colA??0, c.thorax?.colB??0,
+          c.abdomen?.colA??0, c.abdomen?.colB??0, (r.memo||'').replace(/,/g,'、')]);
+      });
+    }
+  });
+  return rows.map(r => r.join(',')).join('\n');
+}
+
+function showExportText(type) {
+  if (patients.length === 0) { toast('症例データがありません'); return; }
+  const area  = document.getElementById('export-text-area');
+  const title = document.getElementById('export-text-title');
+  const ta    = document.getElementById('export-text');
+  area.style.display = '';
+  if (type === 'csv') {
+    title.textContent = '📊 CSVデータ';
+    ta.value = buildCSVText();
+  } else {
+    title.textContent = '💾 JSONバックアップ';
+    ta.value = JSON.stringify({ version:1, exportedAt: new Date().toISOString(), patients }, null, 2);
+  }
+  area.scrollIntoView({ behavior:'smooth' });
+}
+
+function selectAllExportText() {
+  const ta = document.getElementById('export-text');
+  ta.select();
+  ta.setSelectionRange(0, 99999);
+  try { document.execCommand('copy'); toast('✅ コピーしました'); }
+  catch(_) { toast('長押しして「コピー」を選択してください'); }
+}
+
+function importFromText() {
+  const text = document.getElementById('import-text').value.trim();
+  if (!text) { toast('JSONテキストを貼り付けてください'); return; }
+  try {
+    const data = JSON.parse(text);
+    const imported = data.patients || data;
+    if (!Array.isArray(imported)) throw new Error();
+    showConfirm(`${imported.length}頭分のデータを復元します。現在のデータは上書きされます。よろしいですか？`, () => {
+      patients = imported; save();
+      document.getElementById('import-text').value = '';
+      toast(`✅ ${imported.length}頭のデータを復元しました`);
+      showScreen('list');
+    });
+  } catch(_) {
+    toast('⚠️ JSONの形式が正しくありません');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════
+function esc(s='') { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function closeHint() {
+  document.getElementById('install-hint').style.display='none';
+  localStorage.setItem('cad-hint-closed','1');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════
+load();
+if (localStorage.getItem('cad-hint-closed')) document.getElementById('install-hint').style.display='none';
+renderList();
+</script>
+</body>
+</html>
